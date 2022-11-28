@@ -1,0 +1,65 @@
+closeall;
+clear;
+switchtolayout;
+
+w_mat = [380]*1e-9;
+h_mat = (800:50:1050)*1e-9;
+freqPnt = 33;
+
+fnames = cell(length(w_mat)*length(h_mat));
+n = 1;
+
+for (jj = 1:length(w_mat)) {
+    for (ii = 1:length(h_mat)) {
+        width = w_mat(jj); 
+        height = h_mat(ii);                         
+        
+        switchtolayout;
+        setnamed("waveguide", "x span", width);
+        setnamed("waveguide", "y max", height);
+        setnamed("mesh5nm", "x span", width + 600e-9);
+        setnamed("mesh5nm", "y max", height + 300e-9);
+        setnamed("FDE", "y max", height + 2e-6);        
+        setnamed("FDE", "x span", width + 4e-6);                    
+        setnamed("FDE","wavelength",0.85e-6);
+        #BENT WAVEGUIDE
+        setanalysis("bent waveguide",0);           
+        #setanalysis("bend radius",25e-6);
+        #setanalysis("bend location y",height/2);
+        #######         
+        run;
+        #Find all modes, select TE1
+        num_modes = findmodes;
+        TE_mode_num = 1;
+        for (kk = 1:num_modes){   
+            mode = "mode" + num2str(kk);
+            TE_frac = getresult("FDE::data::"+mode,"TE polarization fraction");
+            if (TE_frac > 0.9){
+                if (TE_mode_num == 1){
+                    selectmode(kk);
+                    selectedmode = kk;
+                    #Set flag to 0 so we dont select TE2 as loop continues               
+                    TE_mode_num = 0;              
+                } 
+            }
+        }
+        setanalysis("track selected mode",1);
+        setanalysis("detailed dispersion calculation",1); 
+        setanalysis("number of points", freqPnt);
+        setanalysis("stop wavelength", 1.65e-6);
+        frequencysweep;
+        D = getdata("frequencysweep", "D");
+        vg = getdata("frequencysweep", "vg");
+        neff = getdata("frequencysweep", "neff");
+        f_D = getdata("frequencysweep","f_D");
+        f_vg = getdata("frequencysweep","f_vg");
+        f = getdata("frequencysweep", "f");
+        
+        filename = "2020_10_23_width_" + num2str(floor(width*1e9)) + " height_" + num2str(floor(height*1e9));  
+        matlabsave(filename);
+        
+        fnames{n} = filename;
+        n = n+1;
+        matlabsave("2020_10_23_filenames",h_mat,w_mat,fnames,freqPnt);
+    }
+}
